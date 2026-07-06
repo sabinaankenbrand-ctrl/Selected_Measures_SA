@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selected Measures Overview</title>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, sans-serif;
+    background: #eef7fa;
+    color: #1a2a3a;
+  }
+
+  header {
+    background: #1187a7;
+    color: white;
+    padding: 12px 20px;
+  }
+
+  header h1 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  #reach-display {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-top: 3px;
+  }
+
+  .layout {
+    display: flex;
+    justify-content: center;
+    height: calc(100vh - 62px);
+    padding: 20px;
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 640px;
+    background: white;
+    border: 1px solid #d0dce8;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #d0dce8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8aa0b0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .selected-count {
+    background: #1187a7;
+    color: white;
+    border-radius: 8px;
+    padding: 1px 7px;
+    font-size: 0.65rem;
+  }
+
+  .list-scroll {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .group-header {
+    padding: 8px 14px 4px;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+    border-bottom: 1px solid #e8eef5;
+  }
+
+  .group-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4a6070;
+  }
+
+  .measure-item {
+    padding: 7px 14px 7px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-left: 3px solid #1187a7;
+    border-bottom: 1px solid #e8eef5;
+  }
+
+  .measure-id {
+    font-size: 0.63rem;
+    font-weight: 600;
+    color: #1187a7;
+    background: #d6eef5;
+    border-radius: 3px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    white-space: nowrap;
+  }
+
+  .measure-name {
+    font-size: 0.81rem;
+    color: #2c3e50;
+    line-height: 1.4;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #aaa;
+    font-size: 0.82rem;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .footer {
+    padding: 10px 14px;
+    border-top: 1px solid #d0dce8;
+    flex-shrink: 0;
+  }
+
+  .status-message {
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #4a6070;
+  }
+
+  .status-message.success { color: #1e8449; }
+  .status-message.error { color: #c0392b; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #d0dce8; border-radius: 2px; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Selected Measures Overview</h1>
+  <div id="reach-display"></div>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Selected measures</span>
+      <span class="selected-count" id="selected-count">0</span>
+    </div>
+
+    <div class="list-scroll" id="measure-list">
+      <div class="empty-state">Loading selected measures...</div>
+    </div>
+
+    <div class="footer">
+      <div class="status-message" id="status-message"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   CONFIGURATION
+
+   Same source table as the selection tool: reads rows that were
+   written by SELECTED_MEASURES_TABLE_URL / addFeatures there.
+------------------------------------------------------------------ */
+
+var CONFIG = {
+  SELECTED_MEASURES_TABLE_URL: "https://iwah-public.boku.ac.at/server/rest/services/Hosted/Reach_Selected_Measures/FeatureServer/0",
+
+  SELECTED_MEASURES_TOKEN: "",
+
+  // Field used to store/load the reach ID in the selected-measures table
+  FIELD_SELECTED_REACH_ID: "reach_id",
+
+  FIELD_MEASURE_ID: "measure_id",
+  FIELD_MEASURE_NAME: "measure_name",
+  FIELD_MEASURE_GROUP: "measure_group"
+};
+
+/* ------------------------------------------------------------------
+   STATIC MEASURE DATA (used only as a fallback / for sort order,
+   in case the live table does not carry name/group on every row)
+------------------------------------------------------------------ */
+
+var MEASURES = [
+  { "id": "D4A_001", "name": "Prevent sedimentation at the dam by artificial turbulence", "group": "Enhance sediment continuity at the dam", "measure_no": 1 },
+  { "id": "D4A_002", "name": "Prevent sedimentation at transversal barriers through bypass systems", "group": "Enhance sediment continuity at the dam", "measure_no": 2 },
+  { "id": "D4A_003", "name": "Sediment transfer through the turbines", "group": "Enhance sediment continuity at the dam", "measure_no": 3 },
+  { "id": "D4A_004", "name": "Controlled sediment transfer at transversal barriers", "group": "Enhance sediment continuity at the dam", "measure_no": 4 },
+  { "id": "D4A_005", "name": "Removal of transversal barriers", "group": "Enhance sediment continuity at the dam", "measure_no": 5 },
+  { "id": "D4A_006", "name": "Modification of transversal barrier", "group": "Enhance sediment continuity at the dam", "measure_no": 6 },
+  { "id": "D4A_007", "name": "Minimize fixed weir or sill height", "group": "Enhance sediment continuity at the dam", "measure_no": 7 },
+  { "id": "D4A_008", "name": "Minimize dam or weir width", "group": "Enhance sediment continuity at the dam", "measure_no": 8 },
+  { "id": "D4A_009", "name": "Open ship locks for local remobilization of sediments", "group": "Enhance sediment continuity at the dam", "measure_no": 9 },
+  { "id": "D4A_010", "name": "Modify weir fields to increase sediment continuity", "group": "Enhance sediment continuity at the dam", "measure_no": 10 },
+  { "id": "D4A_011", "name": "Install large bottom outlets or gates for venting, sluicing or flushing", "group": "Enhance sediment continuity at the dam", "measure_no": 11 },
+  { "id": "D4A_012", "name": "Pressure scouring", "group": "Enhance sediment continuity at the dam", "measure_no": 12 },
+  { "id": "D4A_013", "name": "Local dredging at intake structures", "group": "Enhance sediment continuity at the dam", "measure_no": 13 },
+  { "id": "D4A_014", "name": "Innovative hydropower plants", "group": "Enhance sediment continuity at the dam", "measure_no": 14 },
+  { "id": "D4A_015", "name": "Prevent sedimentation in the reservoir or impoundment by venting turbid density currents", "group": "Enhance sediment continuity in the reservoir", "measure_no": 15 },
+  { "id": "D4A_016", "name": "Prevent sedimentation in the reservoir or impoundment by artificial turbulence", "group": "Enhance sediment continuity in the reservoir", "measure_no": 16 },
+  { "id": "D4A_017", "name": "Prevent sedimentation in the reservoir or impoundment with a sediment bypass", "group": "Enhance sediment continuity in the reservoir", "measure_no": 17 },
+  { "id": "D4A_018", "name": "Sediment removal from reservoirs or impoundments by flushing", "group": "Enhance sediment continuity in the reservoir", "measure_no": 18 },
+  { "id": "D4A_019", "name": "Prevent sedimentation in reservoirs or impoundments by sluicing", "group": "Enhance sediment continuity in the reservoir", "measure_no": 19 },
+  { "id": "D4A_020", "name": "Enhance sediment transfer through impoundments by bedload drift", "group": "Enhance sediment continuity in the reservoir", "measure_no": 20 },
+  { "id": "D4A_021", "name": "Sediment removal by dredging and reinsertion", "group": "Enhance sediment continuity in the reservoir", "measure_no": 21 },
+  { "id": "D4A_022", "name": "Minimize reservoir or impoundment width by hydraulic structures", "group": "Enhance sediment continuity in the reservoir", "measure_no": 22 },
+  { "id": "D4A_023", "name": "Reduce impoundment level (effects in reach upstream of barrier)", "group": "Enhance sediment continuity in the reservoir", "measure_no": 23 },
+  { "id": "D4A_024", "name": "Off-stream reservoir", "group": "Enhance sediment continuity in the reservoir", "measure_no": 24 },
+  { "id": "D4A_025", "name": "Optimized flushing or sluicing strategies for dams in series", "group": "Enhance sediment continuity in the reservoir", "measure_no": 25 },
+  { "id": "D4A_026", "name": "Integrated dredging and feeding management", "group": "Enhance sediment continuity in the reservoir", "measure_no": 26 },
+  { "id": "D4A_027", "name": "Develop early warning system at hydropower dam with operational adjustment", "group": "Improve fish continuity", "measure_no": 27 },
+  { "id": "D4A_028", "name": "Increase weir and spill overflow at hydropower dams", "group": "Improve fish continuity", "measure_no": 28 },
+  { "id": "D4A_029", "name": "Implement technical fishway", "group": "Improve fish continuity", "measure_no": 29 },
+  { "id": "D4A_030", "name": "Implement nature-like fishway", "group": "Improve fish continuity", "measure_no": 30 },
+  { "id": "D4A_031", "name": "Implement fish lifts, locks or pumps", "group": "Improve fish continuity", "measure_no": 31 },
+  { "id": "D4A_032", "name": "Collection and transport systems for fish", "group": "Improve fish continuity", "measure_no": 32 },
+  { "id": "D4A_033", "name": "Install fine fish protection screens with bypass systems", "group": "Improve fish continuity", "measure_no": 33 },
+  { "id": "D4A_034", "name": "Implement barrier nets with bypass system", "group": "Improve fish continuity", "measure_no": 34 },
+  { "id": "D4A_035", "name": "Implement fish guidance structures with bypass system", "group": "Improve fish continuity", "measure_no": 35 },
+  { "id": "D4A_036", "name": "Implement skimming walls and bottom overlays with bypass system", "group": "Improve fish continuity", "measure_no": 36 },
+  { "id": "D4A_037", "name": "Install sensory behavioural barriers with bypass system", "group": "Improve fish continuity", "measure_no": 37 },
+  { "id": "D4A_038", "name": "Ecologically improved turbines", "group": "Improve fish continuity", "measure_no": 38 },
+  { "id": "D4A_039", "name": "Removal of riverbed revetment", "group": "Enhance habitat diversity and quality", "measure_no": 39 },
+  { "id": "D4A_040", "name": "Removal of dikes", "group": "Improve flood retention through measures at the dike", "measure_no": 40 },
+  { "id": "D4A_041", "name": "Local lowering of dike crest for targeted floodplain flooding", "group": "Improve flood retention through measures at the dike", "measure_no": 41 },
+  { "id": "D4A_042", "name": "Dike relocation", "group": "Improve flood retention through measures at the dike", "measure_no": 42 },
+  { "id": "D4A_043", "name": "Opening dikes", "group": "Improve flood retention through measures at the dike", "measure_no": 43 },
+  { "id": "D4A_044", "name": "Implementing culverts and inlet sluices into the dikes", "group": "Improve flood retention through measures at the dike", "measure_no": 44 },
+  { "id": "D4A_045", "name": "Sidearm and oxbow lake reconnection", "group": "Improve flood retention through measures in the floodplain", "measure_no": 45 },
+  { "id": "D4A_046", "name": "Filling drainage ditches", "group": "Improve flood retention through measures in the floodplain", "measure_no": 46 },
+  { "id": "D4A_047", "name": "Creating retention ponds in floodplains", "group": "Improve flood retention through measures in the floodplain", "measure_no": 47 },
+  { "id": "D4A_048", "name": "Restoration of floodplains", "group": "Improve flood retention through measures in the floodplain", "measure_no": 48 },
+  { "id": "D4A_049", "name": "Preservation of floodplains", "group": "Improve flood retention through measures in the floodplain", "measure_no": 49 },
+  { "id": "D4A_050", "name": "Removal of particular objects from floodplains (within flood risk management)", "group": "Improve flood retention through measures in the floodplain", "measure_no": 50 },
+  { "id": "D4A_051", "name": "Prevention of contaminants from entering the river system", "group": "Prevent river contamination", "measure_no": 51 },
+  { "id": "D4A_052", "name": "Provide minimum flow requirement", "group": "Provide sufficient residual flow", "measure_no": 52 },
+  { "id": "D4A_053", "name": "Provide instream flow requirement", "group": "Provide sufficient residual flow", "measure_no": 53 },
+  { "id": "D4A_054", "name": "Establish dynamic environmental flows", "group": "Provide sufficient residual flow", "measure_no": 54 },
+  { "id": "D4A_055", "name": "Adjusting operational protocols of dams and weirs of hydropower facilities", "group": "Provide sufficient residual flow", "measure_no": 55 },
+  { "id": "D4A_056", "name": "Adjusting operational protocols of dams and weirs of hydropower facilities to reduce hydropeaking", "group": "Reduce hydropeaking", "measure_no": 56 },
+  { "id": "D4A_057", "name": "Reduce hydropeaking by installing a retention basin", "group": "Reduce hydropeaking", "measure_no": 57 },
+  { "id": "D4A_058", "name": "Remobilisation of consolidated gravel bars", "group": "Reduce riverbed erosion", "measure_no": 58 },
+  { "id": "D4A_059", "name": "Implementation of gravel bars", "group": "Reduce riverbed erosion", "measure_no": 59 },
+  { "id": "D4A_060", "name": "Sediment feeding", "group": "Reduce riverbed erosion", "measure_no": 60 },
+  { "id": "D4A_061", "name": "Removal of artificial bank protection structures (Riverbank restoration)", "group": "Reduce riverbed erosion", "measure_no": 61 },
+  { "id": "D4A_062", "name": "River widening (artificial or self-forming)", "group": "Reduce riverbed erosion", "measure_no": 62 },
+  { "id": "D4A_063", "name": "River remeandering (artificial or self-forming)", "group": "Reduce riverbed erosion", "measure_no": 63 },
+  { "id": "D4A_064", "name": "Lowering elevations of natural near-river banks", "group": "Reduce riverbed erosion", "measure_no": 64 },
+  { "id": "D4A_065", "name": "Break-up of bed armouring (artificial flood or mechanical)", "group": "Reduce riverbed erosion", "measure_no": 65 },
+  { "id": "D4A_066", "name": "Install bedload trap (as part of integrated dredging and feeding management)", "group": "Reduce riverbed erosion", "measure_no": 66 },
+  { "id": "D4A_067", "name": "Enlarge morphological space of rivers", "group": "Reduce riverbed erosion", "measure_no": 67 },
+  { "id": "D4A_068", "name": "Coarse particle feeding (granulometric bed improvement)", "group": "Reduce riverbed erosion", "measure_no": 68 },
+  { "id": "D4A_069", "name": "Minimize or stop commercial dredging", "group": "Reduce riverbed erosion", "measure_no": 69 },
+  { "id": "D4A_070", "name": "Optimisation of river engineering structures to reduce erosion (e.g. groyne optimization)", "group": "Reduce riverbed erosion", "measure_no": 70 },
+  { "id": "D4A_071", "name": "Restore forest riparian buffer", "group": "Reduce sediment input", "measure_no": 71 },
+  { "id": "D4A_072", "name": "Minimize urbanisation and construction of building on sloped terrain", "group": "Reduce sediment input", "measure_no": 72 },
+  { "id": "D4A_073", "name": "Fixation of riverbanks by bioengineering techniques", "group": "Reduce sediment input", "measure_no": 73 },
+  { "id": "D4A_074", "name": "Optimisation of river engineering structures to reduce sedimentation (e.g. groyne optimization)", "group": "Reduce sedimentation", "measure_no": 74 },
+  { "id": "D4A_075", "name": "Minimize anthropogenically caused excessive debris flow, mass movements and landslides", "group": "Reduce sedimentation", "measure_no": 75 },
+  { "id": "D4A_076", "name": "Reducing surface runoff through infiltration and retention", "group": "Reduce sedimentation", "measure_no": 76 },
+  { "id": "D4A_077", "name": "Adjusting land use to reduce sediment and nutrient input", "group": "Reduce sedimentation", "measure_no": 77 },
+  { "id": "D4A_078", "name": "Reducing undesired (fine) sediment input", "group": "Reduce sedimentation", "measure_no": 78 },
+  { "id": "D4A_079", "name": "Remediation of contaminated sediments - in situ technologies (physical/chemical/biological)", "group": "Remove contaminated sediments", "measure_no": 79 },
+  { "id": "D4A_080", "name": "Remediation of contaminated sediments - ex situ treatment (physical/chemical/biological/thermal)", "group": "Remove contaminated sediments", "measure_no": 80 },
+  { "id": "D4A_081", "name": "Improve combined sewer systems by strictly separating stormwater drainage from sanitary sewage", "group": "Remove contaminated sediments", "measure_no": 81 },
+  { "id": "D4A_082", "name": "Reconstruction of irrigation systems for improved sustainable water use", "group": "Climate adaptation", "measure_no": 82 },
+  { "id": "D4A_083", "name": "Adapt crop production towards less water-intensive crops", "group": "Climate adaptation", "measure_no": 83 },
+  { "id": "D4A_084", "name": "Ensuring natural infiltration areas in the landscape and former floodplains", "group": "Climate adaptation", "measure_no": 84 },
+  { "id": "D4A_085", "name": "Restriction of water use in periods with water deficits", "group": "Climate adaptation", "measure_no": 85 },
+  { "id": "D4A_086", "name": "Fairway shifting or narrowing", "group": "Sustainable hydropower", "measure_no": 86 },
+  { "id": "D4A_087", "name": "Construction of gravel islands at riverbanks to improve habitats in impoundments", "group": "Structural enhancement in the impoundment to improve ecology", "measure_no": 87 },
+  { "id": "D4A_088", "name": "Construction of gravel bars to create shallow bank gradients in impoundments", "group": "Structural enhancement in the impoundment to improve ecology", "measure_no": 88 },
+  { "id": "D4A_089", "name": "Construction of groynes and guiding walls to improve habitats in impoundments", "group": "Structural enhancement in the impoundment to improve ecology", "measure_no": 89 },
+  { "id": "D4A_090", "name": "Implementation of sediment biotopes in impoundments to improve habitats", "group": "Structural enhancement in the impoundment to improve ecology", "measure_no": 90 },
+  { "id": "D4A_091", "name": "Creation of side channels (side-connected oxbows/lentic water bodies) in impoundments", "group": "Structural enhancement in the impoundment to improve ecology", "measure_no": 91 },
+  { "id": "D4A_092", "name": "Reconnecting lagoons by opening natural channels", "group": "Sediment management in the delta", "measure_no": 92 },
+  { "id": "D4A_093", "name": "Sediment re-feeding at the coast using sand dregded from the sea", "group": "Sediment management in the delta", "measure_no": 93 }
+];
+
+/* ------------------------------------------------------------------
+   INITIALISE
+------------------------------------------------------------------ */
+
+initialise();
+
+async function initialise() {
+  showCurrentReach();
+
+  var reachId = getReachIdFromUrl();
+
+  if (!reachId) {
+    setStatus("No reach_id was found in the URL. Open this page with ?reach_id=YOUR_REACH_ID.", "error");
+    setEmptyMeasureList("No reach selected.");
+    return;
+  }
+
+  if (!isUrlConfigured(CONFIG.SELECTED_MEASURES_TABLE_URL)) {
+    setStatus("SELECTED_MEASURES_TABLE_URL has not been configured in the script.", "error");
+    setEmptyMeasureList("Selected measures table is not configured.");
+    return;
+  }
+
+  try {
+    setStatus("Loading selected measures for reach " + reachId + "...", "");
+
+    var rows = await querySelectedRowsForReach(reachId);
+
+    renderMeasureList(rows);
+
+    if (rows.length === 0) {
+      setStatus("No measures have been selected yet for reach " + reachId + ".", "");
+    } else {
+      setStatus("Showing " + rows.length + " measure(s) selected for reach " + reachId + ".", "success");
+    }
+
+  } catch (error) {
+    console.error(error);
+    setStatus("Could not load selected measures: " + error.message, "error");
+    setEmptyMeasureList("Could not load selected measures.");
+  }
+}
+
+/* ------------------------------------------------------------------
+   RENDER LIST
+------------------------------------------------------------------ */
+
+function renderMeasureList(rows) {
+  document.getElementById("selected-count").textContent = rows.length;
+
+  if (rows.length === 0) {
+    setEmptyMeasureList("No measures selected for this reach.");
+    return;
+  }
+
+  // Enrich each row with a group / sort order, falling back to the
+  // static MEASURES table if a row does not carry name/group itself.
+  var enriched = rows.map(function(row) {
+    var lookup = getMeasureById(row.measure_id);
+
+    return {
+      id: row.measure_id,
+      name: row.measure_name || (lookup ? lookup.name : row.measure_id),
+      group: row.measure_group || (lookup ? lookup.group : "Other"),
+      measure_no: lookup ? lookup.measure_no : 999999
+    };
+  });
+
+  enriched.sort(function(a, b) {
+    return a.measure_no - b.measure_no;
+  });
+
+  var groups = {};
+  var groupOrder = [];
+
+  enriched.forEach(function(m) {
+    if (!groups[m.group]) {
+      groups[m.group] = [];
+      groupOrder.push(m.group);
+    }
+    groups[m.group].push(m);
+  });
+
+  var container = document.getElementById("measure-list");
+  container.innerHTML = "";
+
+  groupOrder.forEach(function(gname) {
+    var gh = document.createElement("div");
+    gh.className = "group-header";
+    gh.innerHTML = '<span class="group-label">' + escapeHtml(gname) + '</span>';
+    container.appendChild(gh);
+
+    groups[gname].forEach(function(m) {
+      var el = document.createElement("div");
+      el.className = "measure-item";
+
+      el.innerHTML =
+        '<span class="measure-id">' + escapeHtml(m.id) + '</span>' +
+        '<span class="measure-name">' + escapeHtml(m.name) + '</span>';
+
+      container.appendChild(el);
+    });
+  });
+}
+
+function setEmptyMeasureList(message) {
+  var container = document.getElementById("measure-list");
+  container.innerHTML = '<div class="empty-state">' + escapeHtml(message) + '</div>';
+}
+
+/* ------------------------------------------------------------------
+   CURRENT REACH
+------------------------------------------------------------------ */
+
+function getReachIdFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+
+  return (
+    params.get("reach_id") ||
+    params.get("Reach_ID") ||
+    params.get("REACH_ID") ||
+    params.get("segment_id") ||
+    params.get("id")
+  );
+}
+
+function showCurrentReach() {
+  var reachId = getReachIdFromUrl();
+  var el = document.getElementById("reach-display");
+
+  if (!el) { return; }
+
+  if (reachId) {
+    el.textContent = "Current reach: " + reachId;
+  } else {
+    el.textContent = "No reach selected";
+  }
+}
+
+/* ------------------------------------------------------------------
+   QUERY SELECTED MEASURES TABLE
+------------------------------------------------------------------ */
+
+async function querySelectedRowsForReach(reachId) {
+  var url = CONFIG.SELECTED_MEASURES_TABLE_URL.replace(/\/$/, "") + "/query";
+
+  var where = CONFIG.FIELD_SELECTED_REACH_ID + " = '" + escapeSqlLiteral(reachId) + "'";
+
+  var formData = new FormData();
+  formData.append("f", "json");
+  formData.append("where", where);
+  formData.append("outFields", "*");
+  formData.append("returnGeometry", "false");
+
+  if (CONFIG.SELECTED_MEASURES_TOKEN) {
+    formData.append("token", CONFIG.SELECTED_MEASURES_TOKEN);
+  }
+
+  var response = await fetch(url, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error("HTTP error while loading selected measures: " + response.status);
+  }
+
+  var result = await response.json();
+
+  if (result.error) {
+    throw new Error(result.error.message || "ArcGIS query error from selected measures table.");
+  }
+
+  if (!result.features) { return []; }
+
+  return result.features
+    .map(function(feature) {
+      var a = feature.attributes;
+      return {
+        measure_id: a[CONFIG.FIELD_MEASURE_ID],
+        measure_name: a[CONFIG.FIELD_MEASURE_NAME],
+        measure_group: a[CONFIG.FIELD_MEASURE_GROUP]
+      };
+    })
+    .filter(function(row) {
+      return row.measure_id !== null && row.measure_id !== undefined && String(row.measure_id).length > 0;
+    });
+}
+
+/* ------------------------------------------------------------------
+   HELPERS
+------------------------------------------------------------------ */
+
+function getMeasureById(id) {
+  return MEASURES.find(function(m) {
+    return m.id === id;
+  });
+}
+
+function isUrlConfigured(url) {
+  return (
+    url &&
+    url.indexOf("PASTE_") === -1 &&
+    url.indexOf("YOUR_") === -1
+  );
+}
+
+function setStatus(message, type) {
+  var el = document.getElementById("status-message");
+
+  el.textContent = message;
+  el.className = "status-message";
+
+  if (type) {
+    el.classList.add(type);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeSqlLiteral(value) {
+  return String(value).replaceAll("'", "''");
+}
+</script>
+
+</body>
+</html>
