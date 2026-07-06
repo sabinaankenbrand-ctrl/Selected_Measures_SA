@@ -148,6 +148,177 @@
 <body>
 
 <header>
+  <h1>Selected Measures</h1>
+  <div id="reach-display"></div>
+</header>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-header">
+      <span>Selected measures</span>
+      <span class="selected-count" id="selected-count">0</span>
+    </div>
+
+    <div class="list-scroll" id="measure-list">
+      <div class="empty-state">Loading selected measures...</div>
+    </div>
+
+    <div class="footer">
+      <div class="status-message" id="status-message"></div>
+    </div>
+  </div>
+</div>
+
+<script><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selected Measures Overview</title>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, sans-serif;
+    background: #ffffff;
+    color: #1a2a3a;
+  }
+
+  header {
+    background: #1187a7;
+    color: white;
+    padding: 12px 20px;
+  }
+
+  header h1 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  #reach-display {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-top: 3px;
+  }
+
+  .layout {
+    display: flex;
+    height: calc(100vh - 62px);
+  }
+
+  .panel {
+    width: 100%;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+ 
+  .panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #d0dce8;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8aa0b0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .selected-count {
+    background: #1187a7;
+    color: white;
+    border-radius: 8px;
+    padding: 1px 7px;
+    font-size: 0.65rem;
+  }
+
+  .list-scroll {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .group-header {
+    padding: 8px 14px 4px;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+    border-bottom: 1px solid #e8eef5;
+  }
+
+  .group-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4a6070;
+  }
+
+  .measure-item {
+    padding: 7px 14px 7px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-left: 3px solid #1187a7;
+    border-bottom: 1px solid #e8eef5;
+  }
+
+  .measure-id {
+    font-size: 0.63rem;
+    font-weight: 600;
+    color: #1187a7;
+    background: #d6eef5;
+    border-radius: 3px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    white-space: nowrap;
+  }
+
+  .measure-name {
+    font-size: 0.81rem;
+    color: #2c3e50;
+    line-height: 1.4;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #aaa;
+    font-size: 0.82rem;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .footer {
+    padding: 10px 14px;
+    border-top: 1px solid #d0dce8;
+    flex-shrink: 0;
+  }
+
+  .status-message {
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #4a6070;
+  }
+
+  .status-message.success { color: #1e8449; }
+  .status-message.error { color: #c0392b; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #d0dce8; border-radius: 2px; }
+</style>
+</head>
+
+<body>
+
+<header>
   <h1>Selected Measures Overview</h1>
   <div id="reach-display"></div>
 </header>
